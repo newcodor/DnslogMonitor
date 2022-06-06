@@ -119,17 +119,22 @@ func handleDNSRequest(udpConn *net.UDPConn, addr *net.UDPAddr, data []byte) {
 	var err error
 	err = binary.Read(buf, binary.BigEndian, &reqHeader)
 	if err != nil {
-		log.Println("recevie error format magic data")
+		log.Println("recevie error  header data")
 		return
 	}
 	reqResourceRecords := make([]DNSResourceRecord, reqHeader.Qdcount)
 	for i, _ := range reqResourceRecords {
-		if reqResourceRecords[i].DomainName, err = readDomainName(buf); err != nil {
-			log.Println("recevie error format data")
+		reqResourceRecords[i].DomainName, err = readDomainName(buf)
+		if err != nil {
+			log.Println("recevie domain data error")
 			return
 		}
 		reqResourceRecords[i].Type = binary.BigEndian.Uint16(buf.Next(2))
 		reqResourceRecords[i].Class = binary.BigEndian.Uint16(buf.Next(2))
+		if reqResourceRecords[i].DomainName == "" || reqResourceRecords[i].Type == 0 || reqResourceRecords[i].Class == 0 {
+			log.Println("recevie error segmentation data")
+			return
+		}
 		log.Printf("Client ID:%d,Client Addr: %s,Msg Count:%d,Domain: %s,Type: %v,Class: %d", reqHeader.Id, addr, len(data), reqResourceRecords[i].DomainName, DNSType[reqResourceRecords[i].Type], reqResourceRecords[i].Class)
 	}
 	if reqResourceRecords == nil || len(reqResourceRecords) == 0 {
