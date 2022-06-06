@@ -117,7 +117,11 @@ func handleDNSRequest(udpConn *net.UDPConn, addr *net.UDPAddr, data []byte) {
 	buf := bytes.NewBuffer(data)
 	var reqHeader DNSHeader
 	var err error
-	binary.Read(buf, binary.BigEndian, &reqHeader)
+	err = binary.Read(buf, binary.BigEndian, &reqHeader)
+	if err != nil {
+		log.Println("recevie error format magic data")
+		return
+	}
 	reqResourceRecords := make([]DNSResourceRecord, reqHeader.Qdcount)
 	for i, _ := range reqResourceRecords {
 		if reqResourceRecords[i].DomainName, err = readDomainName(buf); err != nil {
