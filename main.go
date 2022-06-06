@@ -121,7 +121,7 @@ func handleDNSRequest(udpConn *net.UDPConn, addr *net.UDPAddr, data []byte) {
 	reqResourceRecords := make([]DNSResourceRecord, reqHeader.Qdcount)
 	for i, _ := range reqResourceRecords {
 		if reqResourceRecords[i].DomainName, err = readDomainName(buf); err != nil {
-			log.Fatal("recevie error format data")
+			log.Println("recevie error format data")
 			return
 		}
 		reqResourceRecords[i].Type = binary.BigEndian.Uint16(buf.Next(2))
