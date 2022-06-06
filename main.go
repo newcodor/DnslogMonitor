@@ -9,6 +9,7 @@ import (
 	"net"
 	// "net/http"
 	"strings"
+	// "error"
 )
 
 var (
@@ -16,6 +17,17 @@ var (
 	port       int    = 53
 	ResolveIP  net.IP = net.ParseIP("127.0.0.1")
 	DNSrecords []string
+	DNSType    map[uint16]string = map[uint16]string{
+		1:  "A",
+		2:  "NS",
+		5:  "CNAME",
+		6:  "SOA",
+		12: "PTR",
+		15: "MX",
+		16: "TXT",
+		28: "AAAA",
+		33: "SRV",
+	}
 )
 
 const (
@@ -104,12 +116,23 @@ func dbLookup(queryResourceRecord DNSResourceRecord) ([]DNSResourceRecord, []DNS
 func handleDNSRequest(udpConn *net.UDPConn, addr *net.UDPAddr, data []byte) {
 	buf := bytes.NewBuffer(data)
 	var reqHeader DNSHeader
+	var err error
 	binary.Read(buf, binary.BigEndian, &reqHeader)
 	reqResourceRecords := make([]DNSResourceRecord, reqHeader.Qdcount)
 	for i, _ := range reqResourceRecords {
-		reqResourceRecords[i].DomainName, _ = readDomainName(buf)
+		if reqResourceRecords[i].DomainName, err = readDomainName(buf); err != nil {
+			log.Fatal("recevie error format data")
+			return
+		}
 		reqResourceRecords[i].Type = binary.BigEndian.Uint16(buf.Next(2))
 		reqResourceRecords[i].Class = binary.BigEndian.Uint16(buf.Next(2))
+		log.Printf("Client ID:%d,Client Addr: %s,Msg Count:%d,Domain: %s,Type: %v,Class: %d", reqHeader.Id, addr, len(data), reqResourceRecords[i].DomainName, DNSType[reqResourceRecords[i].Type], reqResourceRecords[i].Class)
+	}
+	if reqResourceRecords == nil || len(reqResourceRecords) == 0 {
+		// log.Fatal("recevie error data,exit current thread")
+		// log.Panic("recevie error data,exit current thread")
+		log.Println("recevie error data,exit current thread")
+		return
 	}
 	var answerResourceRecords = make([]DNSResourceRecord, 0)
 	var authorityResourceRecords = make([]DNSResourceRecord, 0)
@@ -122,7 +145,6 @@ func handleDNSRequest(udpConn *net.UDPConn, addr *net.UDPAddr, data []byte) {
 		authorityResourceRecords = append(authorityResourceRecords, newAuthorityRR...)
 		additionalResourceRecords = append(additionalResourceRecords, newAdditionalRR...)
 	}
-	log.Printf("Client ID:%d,Client Addr: %s,Msg Count:%d,Domain: %s,Type: %d,Class: %d", reqHeader.Id, addr, len(data), reqResourceRecords[0].DomainName, reqResourceRecords[0].Type, reqResourceRecords[0].Class)
 	// log.Println(reqResourceRecords[0].DomainName)
 	DNSrecords = append(DNSrecords, strings.Join([]string{addr.String(), reqResourceRecords[0].DomainName}, ""))
 	var responseBuffer = new(bytes.Buffer)
@@ -134,7 +156,7 @@ func handleDNSRequest(udpConn *net.UDPConn, addr *net.UDPAddr, data []byte) {
 		Nscount: uint16(len(authorityResourceRecords)),
 		Arcount: uint16(len(additionalResourceRecords)),
 	}
-	err := Write(responseBuffer, &responseHeader)
+	err = Write(responseBuffer, &responseHeader)
 	if err != nil {
 		log.Fatal("Error writing to buffer: %v", err.Error())
 	}
